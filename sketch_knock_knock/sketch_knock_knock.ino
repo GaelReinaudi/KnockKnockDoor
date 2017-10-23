@@ -17,34 +17,39 @@
    Update: Nov 20 09: Updated handling of programming button to make it more intuitive, give better feedback.
    Update: Jan 20 10: Removed the "pinMode(knockSensor, OUTPUT);" line since it makes no sense and doesn't do anything.
  */
- 
-#include <Adafruit_MotorShield.h>
-#include "utility/Adafruit_PWMServoDriver.h"
 
 // Pin definitions
 const int knockSensor = 0;         // Piezo sensor on pin 0.
 const int programSwitch = 2;       // If this is high we program a new code.
-const int lockMotor = 11;           // Gear motor used to turn the lock.
+const int lockMotor = 10;           // Gear motor used to turn the lock.
 const int redLED = 13;              // Status LED
-const int greenLED = 5;            // Status LED
+const int greenLED = 11;            // Status LED
  
 // Tuning constants.  Could be made vars and hoooked to potentiometers for soft configuration, etc.
-const int threshold = 1;           // Minimum signal from the piezo to register as a knock
+const int threshold = 3;           // Minimum signal from the piezo to register as a knock
 const int rejectValue = 25;        // If an individual knock is off by this percentage of a knock we don't unlock..
 const int averageRejectValue = 15; // If the average timing of the knocks is off by this percent we don't unlock.
-const int knockFadeTime = 75;     // milliseconds we allow a knock to fade before we listen for another one. (Debounce timer.)
-const int lockTurnTime = 3000;      // milliseconds that we run the motor to get it to go a half turn.
+const int knockFadeTime = 150;     // milliseconds we allow a knock to fade before we listen for another one. (Debounce timer.)
+const int lockTurnTime = 4000;      // milliseconds that we run the motor to get it to go a half turn.
 
 const int maximumKnocks = 20;       // Maximum number of knocks to listen for.
 const int knockComplete = 1200;     // Longest time to wait for a knock before we assume that it's finished.
 
 
 // Variables.
-int secretCode[maximumKnocks] = {50, 25, 25, 50, 100, 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};  // Initial setup: "Shave and a Hair Cut, two bits."
+int secretCode[maximumKnocks] = {100, 50,100,50};  // Initial setup: "Shave and a Hair Cut, two bits."
+//int secretCode[maximumKnocks] = {50, 25, 25, 50, 100, 50, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};  // Initial setup: "Shave and a Hair Cut, two bits."
 //int secretCode[maximumKnocks] = {100, 100, 100, 66, 33, 100, 66, 33, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};  // Initial setup: "Shave and a Hair Cut, two bits."
 int knockReadings[maximumKnocks];   // When someone knocks this array fills with delays between knocks.
 int knockSensorValue = 0;           // Last reading of the knock sensor.
 int programButtonPressed = false;   // Flag so we remember the programming button setting at the end of the cycle.
+
+#include <Wire.h>
+#include <Adafruit_MotorShield.h>
+// Create the motor shield object with the default I2C address
+Adafruit_MotorShield AFMS = Adafruit_MotorShield(); 
+// Select which 'port' M1, M2, M3 or M4. In this case, M1
+Adafruit_DCMotor *myMotor = AFMS.getMotor(1);
 
 void setup() {
   pinMode(lockMotor, OUTPUT);
@@ -57,6 +62,9 @@ void setup() {
   
   digitalWrite(greenLED, HIGH);      // Green LED on, everything is go.
   analogReference(INTERNAL);
+  
+  AFMS.begin();  // create with the default frequency 1.6KHz
+
 }
 
 void loop() {
@@ -168,11 +176,15 @@ void triggerDoorUnlock(){
   // turn the motor on for a bit.
   digitalWrite(lockMotor, HIGH);
   digitalWrite(greenLED, HIGH);            // And the green LED too.
+  myMotor->setSpeed(255);
+  myMotor->run(FORWARD);
   
   delay (lockTurnTime);                    // Wait a bit.
   
   digitalWrite(lockMotor, LOW);            // Turn the motor off.
-  
+  // turn off motor
+  myMotor->run(RELEASE);
+
   // Blink the green LED a few times for more visual feedback.
   for (i=0; i < 5; i++){   
       digitalWrite(greenLED, LOW);
